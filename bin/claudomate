@@ -304,8 +304,10 @@ cmd_trigger() {
 
   [[ -n "$repo" ]] || repo=$(_repo_root)
 
-  local window=$(basename "$repo")
-  local file_upper="${job^^}"
+  _load_config "$repo"
+  local window="$WINDOW"
+  local file_upper
+  file_upper=$(echo "$job" | tr '[:lower:]' '[:upper:]')
   local file="$repo/${file_upper}.md"
 
   [[ -f "$file" ]] || _die "file not found: $file"
