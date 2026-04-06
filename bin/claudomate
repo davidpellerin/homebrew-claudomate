@@ -1,0 +1,348 @@
+#!/usr/bin/env bash
+# claudomate - Claude Code automation CLI for any repo
+
+VERSION="0.1.0"
+LAUNCHAGENTS="$HOME/Library/LaunchAgents"
+TMUX_BIN="/opt/homebrew/bin/tmux"
+TMUX_SOCK="/tmp/tmux-$(id -u)/default"
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+_die()  { echo "claudomate: error: $*" >&2; exit 1; }
+_info() { echo "$*"; }
+
+_repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || echo "$PWD"
+}
+
+_repo_label_base() {
+  local repo="$1"
+  local name=$(basename "$repo")
+  local hash=$(echo "$repo" | md5 | cut -c1-6)
+  echo "com.claudomate.${name}_${hash}"
+}
+
+_load_config() {
+  local repo="$1"
+  local cfg="$repo/.claudomate"
+  [[ -f "$cfg" ]] || _die "not installed in $(basename "$repo"). Run: claudomate install"
+  source "$cfg"
+}
+
+# ── plist generation ──────────────────────────────────────────────────────────
+
+_write_heartbeat_plist() {
+  local repo="$1"
+  local label="$2"
+  local claudomate_bin="$3"
+  local plist="$LAUNCHAGENTS/${label}.plist"
+
+  cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${label}</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>${claudomate_bin}</string>
+        <string>trigger</string>
+        <string>heartbeat</string>
+        <string>--repo</string>
+        <string>${repo}</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Minute</key><integer>45</integer></dict>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>${repo}/logs/heartbeat.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>${repo}/logs/heartbeat_errors.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+EOF
+}
+
+_write_standup_plist() {
+  local repo="$1"
+  local label="$2"
+  local claudomate_bin="$3"
+  local plist="$LAUNCHAGENTS/${label}.plist"
+
+  cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${label}</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>${claudomate_bin}</string>
+        <string>trigger</string>
+        <string>standup</string>
+        <string>--repo</string>
+        <string>${repo}</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>${repo}/logs/standup.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>${repo}/logs/standup_errors.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+EOF
+}
+
+# ── commands ──────────────────────────────────────────────────────────────────
+
+cmd_install() {
+  local repo=$(_repo_root)
+  local base_label=$(_repo_label_base "$repo")
+  local window=$(basename "$repo")
+  local claudomate_bin=$(command -v claudomate || echo "$0")
+
+  # Write .claudomate config (gitignored)
+  cat > "$repo/.claudomate" <<EOF
+REPO_PATH="$repo"
+REPO_LABEL="$base_label"
+WINDOW="$window"
+EOF
+
+  # Ensure logs dir
+  mkdir -p "$repo/logs"
+  [[ -f "$repo/logs/.gitkeep" ]] || touch "$repo/logs/.gitkeep"
+
+  # Create HEARTBEAT.md if missing
+  if [[ ! -f "$repo/HEARTBEAT.md" ]]; then
+    cat > "$repo/HEARTBEAT.md" <<'HEREDOC'
+# Heartbeat Instructions
+
+Read these instructions and execute them one by one.
+
+## Tasks
+
+- Append a line to `logs/HEARTBEAT_LOG.md` in this repo with the current date/time and a heartbeat message. Format: `YYYY-MM-DD HH:MM: Heartbeat OK.`
+HEREDOC
+    _info "  created HEARTBEAT.md"
+  fi
+
+  # Create STANDUP.md if missing
+  if [[ ! -f "$repo/STANDUP.md" ]]; then
+    cat > "$repo/STANDUP.md" <<'HEREDOC'
+# Daily Standup Instructions
+
+Read these instructions and execute them one by one.
+
+## Tasks
+
+- Append a line to `logs/STANDUP_LOG.md` in this repo with today's date and a "Good morning!" message. Format: `YYYY-MM-DD: Good morning! Standup complete.`
+HEREDOC
+    _info "  created STANDUP.md"
+  fi
+
+  # Generate and install plists
+  _write_heartbeat_plist "$repo" "${base_label}.heartbeat" "$claudomate_bin"
+  _write_standup_plist   "$repo" "${base_label}.standup"   "$claudomate_bin"
+  _info "  installed launchd plists"
+
+  # Load jobs
+  launchctl load "$LAUNCHAGENTS/${base_label}.heartbeat.plist"
+  launchctl load "$LAUNCHAGENTS/${base_label}.standup.plist"
+  _info "  loaded launchd jobs"
+
+  echo ""
+  echo "claudomate installed in $(basename "$repo")."
+  echo ""
+  echo "Edit HEARTBEAT.md and STANDUP.md to customize your automations."
+  echo "Run 'claudomate startup' to ensure the Claude tmux window is running."
+}
+
+cmd_uninstall() {
+  local repo=$(_repo_root)
+  _load_config "$repo"
+
+  for job in heartbeat standup; do
+    local label="${REPO_LABEL}.${job}"
+    local plist="$LAUNCHAGENTS/${label}.plist"
+    if [[ -f "$plist" ]]; then
+      launchctl unload "$plist" 2>/dev/null || true
+      rm -f "$plist"
+      _info "  removed $label"
+    fi
+  done
+
+  rm -f "$repo/.claudomate"
+  _info "claudomate uninstalled from $(basename "$repo")."
+}
+
+cmd_start() {
+  local repo=$(_repo_root)
+  _load_config "$repo"
+  local job="${1:-}"
+
+  if [[ -n "$job" ]]; then
+    launchctl load "$LAUNCHAGENTS/${REPO_LABEL}.${job}.plist"
+    _info "started $job"
+  else
+    for j in heartbeat standup; do
+      launchctl load "$LAUNCHAGENTS/${REPO_LABEL}.${j}.plist"
+    done
+    _info "started all jobs"
+  fi
+}
+
+cmd_stop() {
+  local repo=$(_repo_root)
+  _load_config "$repo"
+  local job="${1:-}"
+
+  if [[ -n "$job" ]]; then
+    launchctl unload "$LAUNCHAGENTS/${REPO_LABEL}.${job}.plist" 2>/dev/null || true
+    _info "stopped $job"
+  else
+    for j in heartbeat standup; do
+      launchctl unload "$LAUNCHAGENTS/${REPO_LABEL}.${j}.plist" 2>/dev/null || true
+    done
+    _info "stopped all jobs"
+  fi
+}
+
+cmd_restart() {
+  cmd_stop "$@"
+  cmd_start "$@"
+}
+
+cmd_run() {
+  local job="${1:-}"
+  [[ -n "$job" ]] || _die "usage: claudomate run <heartbeat|standup>"
+  local repo=$(_repo_root)
+  _load_config "$repo"
+  launchctl start "${REPO_LABEL}.${job}"
+}
+
+cmd_logs() {
+  local job="${1:-}"
+  [[ -n "$job" ]] || _die "usage: claudomate logs <heartbeat|standup>"
+  local repo=$(_repo_root)
+  tail -f "$repo/logs/${job}.log"
+}
+
+cmd_status() {
+  launchctl list | grep com.claudomate || echo "(no claudomate jobs loaded)"
+}
+
+cmd_startup() {
+  local repo=$(_repo_root)
+  _load_config "$repo"
+  local claude_bin=$(command -v claude || echo /opt/homebrew/bin/claude)
+
+  if $TMUX_BIN -S "$TMUX_SOCK" list-windows -F '#{window_name}' 2>/dev/null | grep -q "^${WINDOW}$"; then
+    _info "window '$WINDOW' already running."
+  else
+    _info "creating window '$WINDOW' with Claude..."
+    $TMUX_BIN -S "$TMUX_SOCK" new-window -n "$WINDOW" \
+      "cd $REPO_PATH && $claude_bin --model haiku --dangerously-skip-permissions"
+  fi
+}
+
+cmd_trigger() {
+  # Called by launchd — injects a prompt into the Claude tmux pane for this repo.
+  local job="${1:-}"
+  [[ -n "$job" ]] || _die "usage: claudomate trigger <heartbeat|standup> --repo <path>"
+  shift
+
+  local repo=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo) repo="$2"; shift 2 ;;
+      *) _die "unknown option: $1" ;;
+    esac
+  done
+
+  [[ -n "$repo" ]] || repo=$(_repo_root)
+
+  local window=$(basename "$repo")
+  local file_upper="${job^^}"
+  local file="$repo/${file_upper}.md"
+
+  [[ -f "$file" ]] || _die "file not found: $file"
+
+  local prompt="Read the file $file and execute every task listed in it."
+  $TMUX_BIN -S "$TMUX_SOCK" send-keys -t "$window" "/new" Enter
+  sleep 2
+  $TMUX_BIN -S "$TMUX_SOCK" send-keys -t "$window" "$prompt" Enter
+}
+
+cmd_version() {
+  echo "claudomate $VERSION"
+}
+
+cmd_help() {
+  cat <<'EOF'
+claudomate - Claude Code automation for any repo
+
+Usage:
+  claudomate <command> [args]
+
+Commands:
+  install           Set up claudomate in the current repo
+  uninstall         Remove claudomate from the current repo
+  start  [job]      Load launchd job(s)
+  stop   [job]      Unload launchd job(s)
+  restart [job]     Reload launchd job(s)
+  run    <job>      Trigger a job immediately via launchctl
+  logs   <job>      Tail logs for a job
+  status            Show all loaded claudomate jobs
+  startup           Ensure tmux window with Claude is running
+  version           Print version
+
+Jobs: heartbeat, standup
+EOF
+}
+
+# ── dispatch ──────────────────────────────────────────────────────────────────
+
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+  install)            cmd_install   "$@" ;;
+  uninstall)          cmd_uninstall "$@" ;;
+  start)              cmd_start     "$@" ;;
+  stop)               cmd_stop      "$@" ;;
+  restart)            cmd_restart   "$@" ;;
+  run)                cmd_run       "$@" ;;
+  logs)               cmd_logs      "$@" ;;
+  status)             cmd_status    "$@" ;;
+  startup)            cmd_startup   "$@" ;;
+  trigger)            cmd_trigger   "$@" ;;
+  version|--version)  cmd_version      ;;
+  help|--help|-h)     cmd_help         ;;
+  *) _die "unknown command: $cmd. Run 'claudomate help' for usage." ;;
+esac
