@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.2"
+VERSION="0.2.3"
 LAUNCHAGENTS="$HOME/Library/LaunchAgents"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 TMUX_SOCK="/tmp/tmux-$(id -u)/default"
@@ -254,9 +254,11 @@ cmd_logs() {
 }
 
 cmd_list() {
-  local plists=("$LAUNCHAGENTS"/com.claudomate.*.plist)
+  local repo=$(_repo_root)
+  _load_config "$repo"
+  local plists=("$LAUNCHAGENTS"/${REPO_LABEL}.*.plist)
   if [[ ! -e "${plists[0]}" ]]; then
-    echo "(no claudomate plists installed)"
+    echo "(no claudomate plists installed for $(basename "$repo"))"
     return
   fi
   printf "%-60s %s\n" "LABEL" "STATUS"
