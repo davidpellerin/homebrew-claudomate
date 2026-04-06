@@ -253,6 +253,23 @@ cmd_logs() {
   tail -f "$repo/logs/${job}.log"
 }
 
+cmd_list() {
+  local plists=("$LAUNCHAGENTS"/com.claudomate.*.plist)
+  if [[ ! -e "${plists[0]}" ]]; then
+    echo "(no claudomate plists installed)"
+    return
+  fi
+  printf "%-60s %s\n" "LABEL" "STATUS"
+  for plist in "${plists[@]}"; do
+    local label=$(basename "$plist" .plist)
+    if launchctl list "$label" &>/dev/null; then
+      printf "%-60s %s\n" "$label" "loaded"
+    else
+      printf "%-60s %s\n" "$label" "unloaded"
+    fi
+  done
+}
+
 cmd_status() {
   launchctl list | grep com.claudomate || echo "(no claudomate jobs loaded)"
 }
@@ -318,7 +335,8 @@ Commands:
   restart [job]     Reload launchd job(s)
   run    <job>      Trigger a job immediately via launchctl
   logs   <job>      Tail logs for a job
-  status            Show all loaded claudomate jobs
+  list              Show installed claudomate plists and their load status
+  status            Show all loaded claudomate jobs (raw launchctl output)
   startup           Ensure tmux window with Claude is running
   version           Print version
 
@@ -339,6 +357,7 @@ case "$cmd" in
   restart)            cmd_restart   "$@" ;;
   run)                cmd_run       "$@" ;;
   logs)               cmd_logs      "$@" ;;
+  list)               cmd_list      "$@" ;;
   status)             cmd_status    "$@" ;;
   startup)            cmd_startup   "$@" ;;
   trigger)            cmd_trigger   "$@" ;;
