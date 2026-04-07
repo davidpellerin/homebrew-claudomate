@@ -16,4 +16,4 @@ cd your-repo
 claudomate install
 ```
 
-Edit `HEARTBEAT.md` and `STANDUP.md` to customize your automations.
+Edit `HEARTBEAT.md` to customize your automations.
