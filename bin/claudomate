@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.7"
+VERSION="0.2.8"
 TMUX_BIN="/opt/homebrew/bin/tmux"
-TMUX_SOCK="/tmp/tmux-$(id -u)/default"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -19,13 +18,6 @@ _repo_label_base() {
   local name=$(basename "$repo")
   local hash=$(echo "$repo" | md5 | cut -c1-6)
   echo "com.claudomate.${name}_${hash}"
-}
-
-_load_config() {
-  local repo="$1"
-  local cfg="$repo/.claudomate/config"
-  [[ -f "$cfg" ]] || _die "not installed in $(basename "$repo"). Run: claudomate install"
-  source "$cfg"
 }
 
 # ── plist generation ──────────────────────────────────────────────────────────
@@ -77,19 +69,10 @@ EOF
 cmd_install() {
   local repo=$(_repo_root)
   local base_label=$(_repo_label_base "$repo")
-  local window=$(basename "$repo")
   local plist_dir="$repo/claudomate/launchd"
   local scripts_dir="$repo/claudomate/scripts"
 
-  mkdir -p "$plist_dir" "$scripts_dir" "$repo/.claudomate"
-
-  # Write .claudomate/config (gitignored)
-  cat > "$repo/.claudomate/config" <<EOF
-REPO_PATH="$repo"
-REPO_LABEL="$base_label"
-WINDOW="$window"
-PLIST_DIR="$plist_dir"
-EOF
+  mkdir -p "$plist_dir" "$scripts_dir"
 
   # Ensure logs dir
   mkdir -p "$repo/logs"
@@ -132,7 +115,7 @@ EOF
     _info "  created claudomate/scripts/start.sh"
   fi
 
-  # Create .claudomate/scripts/heartbeat.sh if missing
+  # Create claudomate/scripts/heartbeat.sh if missing
   if [[ ! -f "$scripts_dir/heartbeat.sh" ]]; then
     cat > "$scripts_dir/heartbeat.sh" <<EOF
 #!/usr/bin/env bash
@@ -181,122 +164,22 @@ INSTALL
   echo ""
   echo "Edit HEARTBEAT.md to customize your automation, or add new jobs by"
   echo "creating <JOB>.md and claudomate/scripts/<job>.sh."
-  echo "Run 'claudomate start' to ensure the Claude tmux window is running."
+  echo "Run claudomate/scripts/start.sh to ensure the Claude tmux window is running."
 }
 
 cmd_uninstall() {
   local repo=$(_repo_root)
-  _load_config "$repo"
+  local base_label=$(_repo_label_base "$repo")
+  local plist_dir="$repo/claudomate/launchd"
+  local plist="$plist_dir/${base_label}.heartbeat.plist"
 
-  for job in heartbeat; do
-    local label="${REPO_LABEL}.${job}"
-    local plist="$PLIST_DIR/${label}.plist"
-    if [[ -f "$plist" ]]; then
-      launchctl unload "$plist" 2>/dev/null || true
-      rm -f "$plist"
-      _info "  removed $label"
-    fi
-  done
+  if [[ -f "$plist" ]]; then
+    launchctl unload "$plist" 2>/dev/null || true
+    _info "  unloaded ${base_label}.heartbeat"
+  fi
 
-  rm -f "$repo/.claudomate/config"
+  rm -rf "$repo/claudomate"
   _info "claudomate uninstalled from $(basename "$repo")."
-}
-
-cmd_load() {
-  local repo=$(_repo_root)
-  _load_config "$repo"
-  local job="${1:-}"
-
-  if [[ -n "$job" ]]; then
-    launchctl load "$PLIST_DIR/${REPO_LABEL}.${job}.plist"
-    _info "loaded $job"
-  else
-    launchctl load "$PLIST_DIR/${REPO_LABEL}.heartbeat.plist"
-    _info "loaded heartbeat"
-  fi
-}
-
-cmd_unload() {
-  local repo=$(_repo_root)
-  _load_config "$repo"
-  local job="${1:-}"
-
-  if [[ -n "$job" ]]; then
-    launchctl unload "$PLIST_DIR/${REPO_LABEL}.${job}.plist" 2>/dev/null || true
-    _info "unloaded $job"
-  else
-    launchctl unload "$PLIST_DIR/${REPO_LABEL}.heartbeat.plist" 2>/dev/null || true
-    _info "unloaded heartbeat"
-  fi
-}
-
-cmd_reload() {
-  cmd_unload "$@"
-  cmd_load "$@"
-}
-
-cmd_run() {
-  local job="${1:-}"
-  [[ -n "$job" ]] || _die "usage: claudomate run <job>"
-  local repo=$(_repo_root)
-  _load_config "$repo"
-  launchctl start "${REPO_LABEL}.${job}"
-}
-
-cmd_logs() {
-  local job="${1:-}"
-  [[ -n "$job" ]] || _die "usage: claudomate logs <job>"
-  local repo=$(_repo_root)
-  tail -f "$repo/logs/${job}.log"
-}
-
-cmd_list() {
-  local repo=$(_repo_root)
-  _load_config "$repo"
-  local plists=("$PLIST_DIR"/${REPO_LABEL}.*.plist)
-  if [[ ! -e "${plists[0]}" ]]; then
-    echo "(no claudomate plists installed for $(basename "$repo"))"
-    return
-  fi
-  printf "%-60s %s\n" "LABEL" "STATUS"
-  for plist in "${plists[@]}"; do
-    local label=$(basename "$plist" .plist)
-    if launchctl list "$label" &>/dev/null; then
-      printf "%-60s %s\n" "$label" "loaded"
-    else
-      printf "%-60s %s\n" "$label" "unloaded"
-    fi
-  done
-}
-
-cmd_status() {
-  local repo=$(_repo_root)
-  _load_config "$repo"
-  launchctl list | grep "$REPO_LABEL" || echo "(no claudomate jobs loaded for $(basename "$repo"))"
-}
-
-cmd_start() {
-  local repo=$(_repo_root)
-  _load_config "$repo"
-  local claude_bin=$(command -v claude || echo /opt/homebrew/bin/claude)
-
-  if $TMUX_BIN -S "$TMUX_SOCK" list-windows -F '#{window_name}' 2>/dev/null | grep -q "^${WINDOW}$"; then
-    _info "window '$WINDOW' already running."
-  else
-    _info "creating window '$WINDOW' with Claude..."
-    $TMUX_BIN -S "$TMUX_SOCK" new-window -n "$WINDOW" \
-      "cd $REPO_PATH && $claude_bin --model haiku --dangerously-skip-permissions"
-  fi
-}
-
-cmd_trigger() {
-  local job="${1:-}"
-  [[ -n "$job" ]] || _die "usage: claudomate trigger <job>"
-
-  local repo=$(_repo_root)
-  local script="$repo/claudomate/scripts/${job}.sh"
-  [[ -f "$script" ]] || _die "no script found for job '$job': $script"
-  exec bash "$script"
 }
 
 cmd_version() {
@@ -305,25 +188,15 @@ cmd_version() {
 
 cmd_help() {
   cat <<'EOF'
-claudomate - Claude Code automation for any repo
+claudomate - scaffold tmux/launchd Claude automation into any repo
 
 Usage:
-  claudomate <command> [args]
+  claudomate <command>
 
 Commands:
-  install           Set up claudomate in the current repo
-  uninstall         Remove claudomate from the current repo
-  start             Ensure tmux window with Claude is running
-  load   [job]      Load launchd job(s)
-  unload [job]      Unload launchd job(s)
-  reload [job]      Reload launchd job(s)
-  run    <job>      Trigger a job immediately via launchctl
-  logs   <job>      Tail logs for a job
-  list              Show installed claudomate plists and their load status
-  status            Show all loaded claudomate jobs (raw launchctl output)
-  version           Print version
-
-Jobs: heartbeat (add more by creating <JOB>.md and a matching launchd plist)
+  install     Scaffold heartbeat scripts and launchd plist into the current repo
+  uninstall   Unload the launchd job and remove claudomate/ from the repo
+  version     Print version
 EOF
 }
 
@@ -335,15 +208,6 @@ shift 2>/dev/null || true
 case "$cmd" in
   install)            cmd_install   "$@" ;;
   uninstall)          cmd_uninstall "$@" ;;
-  start)              cmd_start     "$@" ;;
-  load)               cmd_load      "$@" ;;
-  unload)             cmd_unload    "$@" ;;
-  reload)             cmd_reload    "$@" ;;
-  run)                cmd_run       "$@" ;;
-  logs)               cmd_logs      "$@" ;;
-  list)               cmd_list      "$@" ;;
-  status)             cmd_status    "$@" ;;
-  trigger)            cmd_trigger   "$@" ;;
   version|--version)  cmd_version      ;;
   help|--help|-h)     cmd_help         ;;
   *) _die "unknown command: $cmd. Run 'claudomate help' for usage." ;;
