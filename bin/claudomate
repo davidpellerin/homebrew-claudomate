@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.13"
+VERSION="0.2.14"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
@@ -109,14 +109,16 @@ cmd_install() {
   _write_heartbeat_plist "$repo" "${base_label}.heartbeat" "$plist_dir"
   _info "  installed launchd plist → claudomate/launchd/"
 
-  # Write install.sh / delete.sh for manual use by collaborators
-  cp "$TEMPLATES_DIR/launchd/install.sh" "$plist_dir/install.sh"
-  chmod +x "$plist_dir/install.sh"
-  cp "$TEMPLATES_DIR/launchd/delete.sh" "$plist_dir/delete.sh"
-  chmod +x "$plist_dir/delete.sh"
+  # Write load.sh / unload.sh / remove.sh / status.sh for manual use by collaborators
+  cp "$TEMPLATES_DIR/launchd/load.sh" "$plist_dir/load.sh"
+  chmod +x "$plist_dir/load.sh"
+  cp "$TEMPLATES_DIR/launchd/unload.sh" "$plist_dir/unload.sh"
+  chmod +x "$plist_dir/unload.sh"
+  cp "$TEMPLATES_DIR/launchd/remove.sh" "$plist_dir/remove.sh"
+  chmod +x "$plist_dir/remove.sh"
   cp "$TEMPLATES_DIR/launchd/status.sh" "$plist_dir/status.sh"
   chmod +x "$plist_dir/status.sh"
-  _info "  wrote claudomate/launchd/install.sh, delete.sh, and status.sh"
+  _info "  wrote claudomate/launchd/load.sh, unload.sh, remove.sh, and status.sh"
 
   # (Re-)load job — unload first so re-installs work cleanly
   launchctl unload "$plist_dir/${base_label}.heartbeat.plist" 2>/dev/null || true

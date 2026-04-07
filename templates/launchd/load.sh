@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Manually load all claudomate launchd plists in this directory.
-# Run this if you don't have claudomate installed.
+# Load all claudomate launchd plists in this directory.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 for plist in "$DIR"/*.plist; do
   [[ -e "$plist" ]] || continue

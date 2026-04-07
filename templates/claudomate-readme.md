@@ -12,8 +12,10 @@ claudomate/
     heartbeat.sh   — runs on a schedule; sends the contents of HEARTBEAT.md to Claude
   launchd/
     *.plist        — macOS launchd job that fires heartbeat.sh every 15 minutes
-    install.sh     — load the launchd job (run this to opt in)
-    delete.sh      — unload the launchd job (run this to opt out)
+    load.sh        — register and start the launchd job
+    unload.sh      — stop and deregister the job (plist stays on disk)
+    remove.sh      — remove the job from launchd by label (plist stays on disk)
+    status.sh      — show whether each job is running, idle, or not registered
 ```
 
 `HEARTBEAT.md` (in the repo root) contains the instructions Claude executes on each run.
@@ -30,7 +32,7 @@ claudomate install
 If you don't have claudomate installed, you can still load the job directly:
 
 ```bash
-bash claudomate/launchd/install.sh
+bash claudomate/launchd/load.sh
 ```
 
 Then make sure the Claude tmux window is running:
@@ -44,7 +46,7 @@ bash claudomate/scripts/start.sh
 ```bash
 claudomate uninstall
 # or, without claudomate installed:
-bash claudomate/launchd/delete.sh
+bash claudomate/launchd/remove.sh
 ```
 
 ## Installing claudomate

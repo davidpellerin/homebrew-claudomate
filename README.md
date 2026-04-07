@@ -20,12 +20,13 @@ Edit `HEARTBEAT.md` to customize your automations.
 
 ## launchd helpers
 
-Each repo gets a `claudomate/launchd/` directory with three utility scripts:
+Each repo gets a `claudomate/launchd/` directory with utility scripts:
 
 | Script | What it does |
 |---|---|
-| `install.sh` | Load all claudomate launchd jobs (without reinstalling) |
-| `delete.sh` | Unload all claudomate launchd jobs (without fully uninstalling) |
+| `load.sh` | Register and start all claudomate launchd jobs |
+| `unload.sh` | Stop and deregister all jobs (plists stay on disk) |
+| `remove.sh` | Remove all jobs from the launchd system by label (plists stay on disk) |
 | `status.sh` | Show whether each job is running, loaded-but-idle, or not registered |
 
 Run `status.sh` any time you want a quick overview:
