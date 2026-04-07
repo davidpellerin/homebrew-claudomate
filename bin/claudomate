@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.8"
+VERSION="0.2.9"
 TMUX_BIN="/opt/homebrew/bin/tmux"
+TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,59 +81,20 @@ cmd_install() {
 
   # Create HEARTBEAT.md if missing
   if [[ ! -f "$repo/HEARTBEAT.md" ]]; then
-    cat > "$repo/HEARTBEAT.md" <<'HEREDOC'
-# Heartbeat Instructions
-
-Read these instructions and execute them one by one.
-
-## Tasks
-
-- Append a line to `logs/HEARTBEAT_LOG.md` in this repo with the current date/time and a heartbeat message. Format: `YYYY-MM-DD HH:MM: Heartbeat OK.`
-HEREDOC
+    cp "$TEMPLATES_DIR/HEARTBEAT.md" "$repo/HEARTBEAT.md"
     _info "  created HEARTBEAT.md"
   fi
 
   # Create claudomate/scripts/start.sh if missing
   if [[ ! -f "$scripts_dir/start.sh" ]]; then
-    cat > "$scripts_dir/start.sh" <<EOF
-#!/usr/bin/env zsh
-# Ensures the tmux window for this repo exists with Claude running.
-REPO="\$(cd "\$(dirname "\$0")/../.." && pwd)"
-TMUX_BIN="${TMUX_BIN}"
-TMUX_SOCK="/tmp/tmux-\$(id -u)/default"
-WINDOW="\$(basename "\$REPO")"
-CLAUDE_BIN="\$(command -v claude || echo /opt/homebrew/bin/claude)"
-
-if \$TMUX_BIN -S "\$TMUX_SOCK" list-windows -F '#{window_name}' 2>/dev/null | grep -q "^\${WINDOW}\$"; then
-  echo "Window '\$WINDOW' already running."
-else
-  echo "Creating window '\$WINDOW' with Claude..."
-  \$TMUX_BIN -S "\$TMUX_SOCK" new-window -n "\$WINDOW" \
-    "cd \$REPO && \$CLAUDE_BIN --model haiku --dangerously-skip-permissions"
-fi
-EOF
+    sed "s|@@TMUX_BIN@@|${TMUX_BIN}|g" "$TEMPLATES_DIR/scripts/start.sh" > "$scripts_dir/start.sh"
     chmod +x "$scripts_dir/start.sh"
     _info "  created claudomate/scripts/start.sh"
   fi
 
   # Create claudomate/scripts/heartbeat.sh if missing
   if [[ ! -f "$scripts_dir/heartbeat.sh" ]]; then
-    cat > "$scripts_dir/heartbeat.sh" <<EOF
-#!/usr/bin/env bash
-# Runs on a schedule via launchd. Works without claudomate installed.
-REPO="\$(cd "\$(dirname "\$0")/../.." && pwd)"
-TMUX_BIN="${TMUX_BIN}"
-TMUX_SOCK="/tmp/tmux-\$(id -u)/default"
-WINDOW="\$(basename "\$REPO")"
-FILE="\$REPO/HEARTBEAT.md"
-
-[[ -f "\$FILE" ]] || { echo "heartbeat.sh: \$FILE not found" >&2; exit 1; }
-
-prompt="Read the file \$FILE and execute every task listed in it."
-\$TMUX_BIN -S "\$TMUX_SOCK" send-keys -t "\$WINDOW" "/new" Enter
-sleep 2
-\$TMUX_BIN -S "\$TMUX_SOCK" send-keys -t "\$WINDOW" "\$prompt" Enter
-EOF
+    sed "s|@@TMUX_BIN@@|${TMUX_BIN}|g" "$TEMPLATES_DIR/scripts/heartbeat.sh" > "$scripts_dir/heartbeat.sh"
     chmod +x "$scripts_dir/heartbeat.sh"
     _info "  created claudomate/scripts/heartbeat.sh"
   fi
@@ -142,16 +104,7 @@ EOF
   _info "  installed launchd plist → claudomate/launchd/"
 
   # Write install.sh for manual use by collaborators
-  cat > "$plist_dir/install.sh" <<'INSTALL'
-#!/usr/bin/env bash
-# Manually load all claudomate launchd plists in this directory.
-# Run this if you don't have claudomate installed.
-DIR="$(cd "$(dirname "$0")" && pwd)"
-for plist in "$DIR"/*.plist; do
-  [[ -e "$plist" ]] || continue
-  launchctl load "$plist" && echo "loaded: $(basename "$plist")"
-done
-INSTALL
+  cp "$TEMPLATES_DIR/launchd/install.sh" "$plist_dir/install.sh"
   chmod +x "$plist_dir/install.sh"
   _info "  wrote claudomate/launchd/install.sh"
 
