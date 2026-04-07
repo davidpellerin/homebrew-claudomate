@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.14"
+VERSION="0.2.15"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
@@ -30,39 +30,10 @@ _write_heartbeat_plist() {
   local script="$repo/claudomate/scripts/heartbeat.sh"
   local plist="$plist_dir/${label}.plist"
 
-  cat > "$plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>${label}</string>
-
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/bash</string>
-        <string>${script}</string>
-    </array>
-
-    <key>StartCalendarInterval</key>
-    <array>
-        <dict><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Minute</key><integer>15</integer></dict>
-        <dict><key>Minute</key><integer>30</integer></dict>
-        <dict><key>Minute</key><integer>45</integer></dict>
-    </array>
-
-    <key>StandardOutPath</key>
-    <string>${repo}/logs/heartbeat.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>${repo}/logs/heartbeat_errors.log</string>
-
-    <key>RunAtLoad</key>
-    <false/>
-</dict>
-</plist>
-EOF
+  sed -e "s|@@LABEL@@|${label}|g" \
+      -e "s|@@SCRIPT@@|${script}|g" \
+      -e "s|@@REPO@@|${repo}|g" \
+      "$TEMPLATES_DIR/launchd/heartbeat.plist" > "$plist"
 }
 
 # ── commands ──────────────────────────────────────────────────────────────────
