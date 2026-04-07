@@ -17,6 +17,7 @@ install: ## Install claudomate to PREFIX (default: $(PREFIX))
 	install -Dm644 templates/scripts/heartbeat.sh $(PREFIX)/share/claudomate/templates/scripts/heartbeat.sh
 	install -Dm644 templates/launchd/install.sh $(PREFIX)/share/claudomate/templates/launchd/install.sh
 	install -Dm644 templates/launchd/delete.sh $(PREFIX)/share/claudomate/templates/launchd/delete.sh
+	install -Dm644 templates/launchd/status.sh $(PREFIX)/share/claudomate/templates/launchd/status.sh
 	mkdir -p $(PREFIX)/bin
 	ln -sf $(PREFIX)/share/claudomate/bin/claudomate $(PREFIX)/bin/claudomate
 	@echo "Installed claudomate → $(PREFIX)/bin/claudomate"
