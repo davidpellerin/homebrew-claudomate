@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.9"
+VERSION="0.2.10"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
@@ -103,12 +103,15 @@ cmd_install() {
   _write_heartbeat_plist "$repo" "${base_label}.heartbeat" "$plist_dir"
   _info "  installed launchd plist → claudomate/launchd/"
 
-  # Write install.sh for manual use by collaborators
+  # Write install.sh / delete.sh for manual use by collaborators
   cp "$TEMPLATES_DIR/launchd/install.sh" "$plist_dir/install.sh"
   chmod +x "$plist_dir/install.sh"
-  _info "  wrote claudomate/launchd/install.sh"
+  cp "$TEMPLATES_DIR/launchd/delete.sh" "$plist_dir/delete.sh"
+  chmod +x "$plist_dir/delete.sh"
+  _info "  wrote claudomate/launchd/install.sh and delete.sh"
 
-  # Load job
+  # (Re-)load job — unload first so re-installs work cleanly
+  launchctl unload "$plist_dir/${base_label}.heartbeat.plist" 2>/dev/null || true
   launchctl load "$plist_dir/${base_label}.heartbeat.plist"
   _info "  loaded launchd job"
 
