@@ -1,0 +1,2 @@
+# claudomate:@@LABEL@@
+*/15 * * * * @@SCRIPT@@ >> @@REPO@@/logs/heartbeat.log 2>> @@REPO@@/logs/heartbeat_errors.log

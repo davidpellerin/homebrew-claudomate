@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.16"
+VERSION="0.2.17"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -85,6 +85,18 @@ _uninstall_launchd() {
 
 # ── cron install/uninstall ────────────────────────────────────────────────────
 
+_write_heartbeat_cron() {
+  local repo="$1"
+  local label="$2"
+  local cron_dir="$3"
+  local script="$repo/claudomate/scripts/heartbeat.sh"
+
+  sed -e "s|@@LABEL@@|${label}|g" \
+      -e "s|@@SCRIPT@@|${script}|g" \
+      -e "s|@@REPO@@|${repo}|g" \
+      "$TEMPLATES_DIR/cron/heartbeat.cron" > "$cron_dir/${label}.cron"
+}
+
 _install_cron() {
   local repo="$1"
   local base_label="$2"
@@ -93,8 +105,11 @@ _install_cron() {
 
   mkdir -p "$cron_dir"
 
+  _write_heartbeat_cron "$repo" "$label" "$cron_dir"
+  _info "  installed cron definition → claudomate/cron/${label}.cron"
+
   for script in install.sh remove.sh status.sh; do
-    sed "s|@@LABEL@@|${label}|g" "$TEMPLATES_DIR/cron/${script}" > "$cron_dir/${script}"
+    cp "$TEMPLATES_DIR/cron/${script}" "$cron_dir/${script}"
     chmod +x "$cron_dir/${script}"
   done
   _info "  wrote claudomate/cron/install.sh, remove.sh, and status.sh"

@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Install claudomate crontab entry for this repo.
+# Install claudomate crontab entries from *.cron files in this directory.
 DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO="$(cd "$DIR/../.." && pwd)"
-LABEL="@@LABEL@@"
-SCRIPT="$REPO/claudomate/scripts/heartbeat.sh"
-LOG="$REPO/logs/heartbeat.log"
-ERR="$REPO/logs/heartbeat_errors.log"
-ENTRY="*/15 * * * * $SCRIPT >> $LOG 2>> $ERR"
-MARKER="# claudomate:$LABEL"
 
-# Remove any existing entry for this repo, then add fresh
-( crontab -l 2>/dev/null | grep -v "claudomate:$LABEL" | grep -v "$SCRIPT" ) | crontab -
-( crontab -l 2>/dev/null; echo "$MARKER"; echo "$ENTRY" ) | crontab -
-echo "installed cron job: $LABEL"
+for cron_file in "$DIR"/*.cron; do
+  [[ -e "$cron_file" ]] || continue
+  label=$(grep "^# claudomate:" "$cron_file" | head -1 | sed 's/^# claudomate://')
+  [[ -n "$label" ]] || continue
+  cmd=$(awk 'NF && !/^#/ {print $6; exit}' "$cron_file")
+  # Remove existing entry, then add fresh
+  ( crontab -l 2>/dev/null | grep -v "claudomate:$label" | grep -vF "$cmd" ) | crontab -
+  ( crontab -l 2>/dev/null; cat "$cron_file" ) | crontab -
+  echo "installed cron job: $label"
+done
