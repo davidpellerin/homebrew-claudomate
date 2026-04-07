@@ -10,12 +10,16 @@ claudomate/
   scripts/
     start.sh       — ensures a tmux window exists with Claude running in this repo
     heartbeat.sh   — runs on a schedule; sends the contents of HEARTBEAT.md to Claude
-  launchd/
-    *.plist        — macOS launchd job that fires heartbeat.sh every 15 minutes
+  launchd/         — (if installed with launchd)
+    *.plist        — launchd job that fires heartbeat.sh every 15 minutes
     load.sh        — register and start the launchd job
     unload.sh      — stop and deregister the job (plist stays on disk)
     remove.sh      — remove the job from launchd by label (plist stays on disk)
     status.sh      — show whether each job is running, idle, or not registered
+  cron/            — (if installed with cron)
+    install.sh     — add the heartbeat cron job (runs every 15 minutes)
+    remove.sh      — remove the heartbeat cron job
+    status.sh      — show whether the cron job is currently installed
 ```
 
 `HEARTBEAT.md` (in the repo root) contains the instructions Claude executes on each run.
@@ -26,13 +30,17 @@ Edit it to customize what the agent does.
 If you have claudomate installed:
 
 ```bash
-claudomate install
+claudomate install launchd   # or: claudomate install cron
 ```
 
 If you don't have claudomate installed, you can still load the job directly:
 
 ```bash
+# launchd:
 bash claudomate/launchd/load.sh
+
+# cron:
+bash claudomate/cron/install.sh
 ```
 
 Then make sure the Claude tmux window is running:
@@ -44,9 +52,10 @@ bash claudomate/scripts/start.sh
 ## Opting out
 
 ```bash
-claudomate uninstall
-# or, without claudomate installed:
-bash claudomate/launchd/remove.sh
+claudomate uninstall launchd   # or: claudomate uninstall cron
+
+# without claudomate installed:
+bash claudomate/launchd/remove.sh   # or: bash claudomate/cron/remove.sh
 ```
 
 ## Installing claudomate

@@ -1,4 +1,4 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 # Ensures the tmux window for this repo exists with Claude running.
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 TMUX_BIN="@@TMUX_BIN@@"

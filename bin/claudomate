@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.15"
-TMUX_BIN="/opt/homebrew/bin/tmux"
+VERSION="0.2.16"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-_die()  { echo "claudomate: error: $*" >&2; exit 1; }
-_info() { echo "$*"; }
+_die()     { echo "claudomate: error: $*" >&2; exit 1; }
+_info()    { echo "$*"; }
+_is_macos(){ [[ "$(uname -s)" == "Darwin" ]]; }
+
+_tmux_bin() {
+  if _is_macos; then
+    echo "/opt/homebrew/bin/tmux"
+  else
+    command -v tmux 2>/dev/null || echo "tmux"
+  fi
+}
 
 _repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || echo "$PWD"
@@ -17,7 +25,12 @@ _repo_root() {
 _repo_label_base() {
   local repo="$1"
   local name=$(basename "$repo")
-  local hash=$(echo "$repo" | md5 | cut -c1-6)
+  local hash
+  if command -v md5sum >/dev/null 2>&1; then
+    hash=$(echo "$repo" | md5sum | cut -c1-6)
+  else
+    hash=$(echo "$repo" | md5 | cut -c1-6)
+  fi
   echo "com.claudomate.${name}_${hash}"
 }
 
@@ -36,15 +49,87 @@ _write_heartbeat_plist() {
       "$TEMPLATES_DIR/launchd/heartbeat.plist" > "$plist"
 }
 
+# ── launchd install/uninstall ─────────────────────────────────────────────────
+
+_install_launchd() {
+  local repo="$1"
+  local base_label="$2"
+  local plist_dir="$repo/claudomate/launchd"
+
+  mkdir -p "$plist_dir"
+
+  _write_heartbeat_plist "$repo" "${base_label}.heartbeat" "$plist_dir"
+  _info "  installed launchd plist → claudomate/launchd/"
+
+  cp "$TEMPLATES_DIR/launchd/load.sh"   "$plist_dir/load.sh";   chmod +x "$plist_dir/load.sh"
+  cp "$TEMPLATES_DIR/launchd/unload.sh" "$plist_dir/unload.sh"; chmod +x "$plist_dir/unload.sh"
+  cp "$TEMPLATES_DIR/launchd/remove.sh" "$plist_dir/remove.sh"; chmod +x "$plist_dir/remove.sh"
+  cp "$TEMPLATES_DIR/launchd/status.sh" "$plist_dir/status.sh"; chmod +x "$plist_dir/status.sh"
+  _info "  wrote claudomate/launchd/load.sh, unload.sh, remove.sh, and status.sh"
+
+  launchctl unload "$plist_dir/${base_label}.heartbeat.plist" 2>/dev/null || true
+  launchctl load   "$plist_dir/${base_label}.heartbeat.plist"
+  _info "  loaded launchd job"
+}
+
+_uninstall_launchd() {
+  local repo="$1"
+  local base_label="$2"
+  local plist="$repo/claudomate/launchd/${base_label}.heartbeat.plist"
+
+  if [[ -f "$plist" ]]; then
+    launchctl unload "$plist" 2>/dev/null || true
+    _info "  unloaded ${base_label}.heartbeat"
+  fi
+}
+
+# ── cron install/uninstall ────────────────────────────────────────────────────
+
+_install_cron() {
+  local repo="$1"
+  local base_label="$2"
+  local cron_dir="$repo/claudomate/cron"
+  local label="${base_label}.heartbeat"
+
+  mkdir -p "$cron_dir"
+
+  for script in install.sh remove.sh status.sh; do
+    sed "s|@@LABEL@@|${label}|g" "$TEMPLATES_DIR/cron/${script}" > "$cron_dir/${script}"
+    chmod +x "$cron_dir/${script}"
+  done
+  _info "  wrote claudomate/cron/install.sh, remove.sh, and status.sh"
+
+  bash "$cron_dir/install.sh"
+  _info "  installed cron job (every 15 min)"
+}
+
+_uninstall_cron() {
+  local repo="$1"
+  local base_label="$2"
+  local cron_dir="$repo/claudomate/cron"
+  local remove_script="$cron_dir/remove.sh"
+
+  if [[ -f "$remove_script" ]]; then
+    bash "$remove_script"
+  fi
+}
+
 # ── commands ──────────────────────────────────────────────────────────────────
 
 cmd_install() {
+  local scheduler="${1:-}"
   local repo=$(_repo_root)
   local base_label=$(_repo_label_base "$repo")
-  local plist_dir="$repo/claudomate/launchd"
   local scripts_dir="$repo/claudomate/scripts"
+  local tmux_bin=$(_tmux_bin)
 
-  mkdir -p "$plist_dir" "$scripts_dir"
+  case "$scheduler" in
+    launchd|cron) ;;
+    "") _die "scheduler required. Use 'claudomate install launchd' or 'claudomate install cron'." ;;
+    *) _die "unknown scheduler '${scheduler}'. Use 'launchd' or 'cron'." ;;
+  esac
+
+  mkdir -p "$scripts_dir"
 
   # Ensure logs dir
   mkdir -p "$repo/logs"
@@ -64,40 +149,25 @@ cmd_install() {
 
   # Create claudomate/scripts/start.sh if missing
   if [[ ! -f "$scripts_dir/start.sh" ]]; then
-    sed "s|@@TMUX_BIN@@|${TMUX_BIN}|g" "$TEMPLATES_DIR/scripts/start.sh" > "$scripts_dir/start.sh"
+    sed "s|@@TMUX_BIN@@|${tmux_bin}|g" "$TEMPLATES_DIR/scripts/start.sh" > "$scripts_dir/start.sh"
     chmod +x "$scripts_dir/start.sh"
     _info "  created claudomate/scripts/start.sh"
   fi
 
   # Create claudomate/scripts/heartbeat.sh if missing
   if [[ ! -f "$scripts_dir/heartbeat.sh" ]]; then
-    sed "s|@@TMUX_BIN@@|${TMUX_BIN}|g" "$TEMPLATES_DIR/scripts/heartbeat.sh" > "$scripts_dir/heartbeat.sh"
+    sed "s|@@TMUX_BIN@@|${tmux_bin}|g" "$TEMPLATES_DIR/scripts/heartbeat.sh" > "$scripts_dir/heartbeat.sh"
     chmod +x "$scripts_dir/heartbeat.sh"
     _info "  created claudomate/scripts/heartbeat.sh"
   fi
 
-  # Generate and install plist
-  _write_heartbeat_plist "$repo" "${base_label}.heartbeat" "$plist_dir"
-  _info "  installed launchd plist → claudomate/launchd/"
-
-  # Write load.sh / unload.sh / remove.sh / status.sh for manual use by collaborators
-  cp "$TEMPLATES_DIR/launchd/load.sh" "$plist_dir/load.sh"
-  chmod +x "$plist_dir/load.sh"
-  cp "$TEMPLATES_DIR/launchd/unload.sh" "$plist_dir/unload.sh"
-  chmod +x "$plist_dir/unload.sh"
-  cp "$TEMPLATES_DIR/launchd/remove.sh" "$plist_dir/remove.sh"
-  chmod +x "$plist_dir/remove.sh"
-  cp "$TEMPLATES_DIR/launchd/status.sh" "$plist_dir/status.sh"
-  chmod +x "$plist_dir/status.sh"
-  _info "  wrote claudomate/launchd/load.sh, unload.sh, remove.sh, and status.sh"
-
-  # (Re-)load job — unload first so re-installs work cleanly
-  launchctl unload "$plist_dir/${base_label}.heartbeat.plist" 2>/dev/null || true
-  launchctl load "$plist_dir/${base_label}.heartbeat.plist"
-  _info "  loaded launchd job"
+  case "$scheduler" in
+    launchd) _install_launchd "$repo" "$base_label" ;;
+    cron)    _install_cron    "$repo" "$base_label" ;;
+  esac
 
   echo ""
-  echo "claudomate installed in $(basename "$repo")."
+  echo "claudomate installed in $(basename "$repo") using ${scheduler}."
   echo ""
   echo "Edit HEARTBEAT.md to customize your automation, or add new jobs by"
   echo "creating <JOB>.md and claudomate/scripts/<job>.sh."
@@ -105,15 +175,20 @@ cmd_install() {
 }
 
 cmd_uninstall() {
+  local scheduler="${1:-}"
   local repo=$(_repo_root)
   local base_label=$(_repo_label_base "$repo")
-  local plist_dir="$repo/claudomate/launchd"
-  local plist="$plist_dir/${base_label}.heartbeat.plist"
 
-  if [[ -f "$plist" ]]; then
-    launchctl unload "$plist" 2>/dev/null || true
-    _info "  unloaded ${base_label}.heartbeat"
-  fi
+  case "$scheduler" in
+    launchd|cron) ;;
+    "") _die "scheduler required. Use 'claudomate uninstall launchd' or 'claudomate uninstall cron'." ;;
+    *) _die "unknown scheduler '${scheduler}'. Use 'launchd' or 'cron'." ;;
+  esac
+
+  case "$scheduler" in
+    launchd) _uninstall_launchd "$repo" "$base_label" ;;
+    cron)    _uninstall_cron    "$repo" "$base_label" ;;
+  esac
 
   rm -rf "$repo/claudomate"
   _info "claudomate uninstalled from $(basename "$repo")."
@@ -125,15 +200,15 @@ cmd_version() {
 
 cmd_help() {
   cat <<'EOF'
-claudomate - scaffold tmux/launchd Claude automation into any repo
+claudomate - scaffold tmux/Claude automation into any repo
 
 Usage:
-  claudomate <command>
+  claudomate <command> [scheduler]
 
 Commands:
-  install     Scaffold heartbeat scripts and launchd plist into the current repo
-  uninstall   Unload the launchd job and remove claudomate/ from the repo
-  version     Print version
+  install <launchd|cron>    Scaffold heartbeat scripts and scheduler config into the current repo
+  uninstall <launchd|cron>  Remove the scheduled job and claudomate/ from the repo
+  version                   Print version
 EOF
 }
 

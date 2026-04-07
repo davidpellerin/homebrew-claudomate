@@ -1,6 +1,6 @@
 # claudomate
 
-Claude Code automation for any repo. Run scheduled AI tasks via launchd.
+Claude Code automation for any repo. Run scheduled AI tasks via launchd or cron.
 
 ## Why claudomate?
 
@@ -22,20 +22,20 @@ brew install claudomate
 
 ```bash
 cd your-repo
-claudomate install
+claudomate install launchd   # or: claudomate install cron
 ```
 
 Edit `HEARTBEAT.md` to customize your automations.
 
-To change how often the heartbeat runs, edit `claudomate/launchd/*.heartbeat.plist` and update the `StartCalendarInterval` minutes (the default runs at :00, :15, :30, and :45). Then reload:
+To uninstall:
 
 ```bash
-./claudomate/launchd/unload.sh && ./claudomate/launchd/load.sh
+claudomate uninstall launchd   # or: claudomate uninstall cron
 ```
 
 ## launchd helpers
 
-Each repo gets a `claudomate/launchd/` directory with utility scripts:
+When using `launchd`, each repo gets a `claudomate/launchd/` directory with utility scripts:
 
 | Script | What it does |
 |---|---|
@@ -44,9 +44,25 @@ Each repo gets a `claudomate/launchd/` directory with utility scripts:
 | `remove.sh` | Remove all jobs from the launchd system by label (plists stay on disk) |
 | `status.sh` | Show whether each job is running, loaded-but-idle, or not registered |
 
+To change how often the heartbeat runs, edit `claudomate/launchd/*.heartbeat.plist` and update the `StartCalendarInterval` minutes (the default runs at :00, :15, :30, and :45). Then reload:
+
+```bash
+./claudomate/launchd/unload.sh && ./claudomate/launchd/load.sh
+```
+
 Run `status.sh` any time you want a quick overview:
 
 ```bash
 ./claudomate/launchd/status.sh
 # running (pid 1234): com.claudomate.yourrepo.heartbeat
 ```
+
+## cron helpers
+
+When using `cron`, each repo gets a `claudomate/cron/` directory with utility scripts:
+
+| Script | What it does |
+|---|---|
+| `install.sh` | Add the heartbeat cron job (runs every 15 minutes) |
+| `remove.sh` | Remove the heartbeat cron job |
+| `status.sh` | Show whether the cron job is currently installed |
