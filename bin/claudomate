@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.6"
+VERSION="0.2.7"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 TMUX_SOCK="/tmp/tmux-$(id -u)/default"
 
@@ -107,6 +107,29 @@ Read these instructions and execute them one by one.
 - Append a line to `logs/HEARTBEAT_LOG.md` in this repo with the current date/time and a heartbeat message. Format: `YYYY-MM-DD HH:MM: Heartbeat OK.`
 HEREDOC
     _info "  created HEARTBEAT.md"
+  fi
+
+  # Create claudomate/scripts/start.sh if missing
+  if [[ ! -f "$scripts_dir/start.sh" ]]; then
+    cat > "$scripts_dir/start.sh" <<EOF
+#!/usr/bin/env zsh
+# Ensures the tmux window for this repo exists with Claude running.
+REPO="\$(cd "\$(dirname "\$0")/../.." && pwd)"
+TMUX_BIN="${TMUX_BIN}"
+TMUX_SOCK="/tmp/tmux-\$(id -u)/default"
+WINDOW="\$(basename "\$REPO")"
+CLAUDE_BIN="\$(command -v claude || echo /opt/homebrew/bin/claude)"
+
+if \$TMUX_BIN -S "\$TMUX_SOCK" list-windows -F '#{window_name}' 2>/dev/null | grep -q "^\${WINDOW}\$"; then
+  echo "Window '\$WINDOW' already running."
+else
+  echo "Creating window '\$WINDOW' with Claude..."
+  \$TMUX_BIN -S "\$TMUX_SOCK" new-window -n "\$WINDOW" \
+    "cd \$REPO && \$CLAUDE_BIN --model haiku --dangerously-skip-permissions"
+fi
+EOF
+    chmod +x "$scripts_dir/start.sh"
+    _info "  created claudomate/scripts/start.sh"
   fi
 
   # Create .claudomate/scripts/heartbeat.sh if missing
