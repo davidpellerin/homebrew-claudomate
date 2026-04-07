@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.10"
+VERSION="0.2.11"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
@@ -78,6 +78,12 @@ cmd_install() {
   # Ensure logs dir
   mkdir -p "$repo/logs"
   [[ -f "$repo/logs/.gitkeep" ]] || touch "$repo/logs/.gitkeep"
+
+  # Create claudomate/README.md if missing
+  if [[ ! -f "$repo/claudomate/README.md" ]]; then
+    cp "$TEMPLATES_DIR/claudomate-readme.md" "$repo/claudomate/README.md"
+    _info "  created claudomate/README.md"
+  fi
 
   # Create HEARTBEAT.md if missing
   if [[ ! -f "$repo/HEARTBEAT.md" ]]; then
