@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.17"
+VERSION="0.2.19"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
