@@ -1,10 +1,10 @@
 class Claudomate < Formula
   desc "Claude Code automation CLI for any repo"
   homepage "https://github.com/davidpellerin/homebrew-claudomate"
-  url "https://github.com/davidpellerin/homebrew-claudomate/archive/refs/tags/v0.2.18.tar.gz"
-  sha256 "7fbd46027de4d58e09cbded16d419e584171ecaf11071cc672de26973d84b6e5"
+  url "https://github.com/davidpellerin/homebrew-claudomate/archive/refs/tags/v0.2.19.tar.gz"
+  sha256 "b440f76ad3735b8c4de3af35a8648a0d1c7dc0ee78754e079dac52ffe447002c"
   license "MIT"
-  version "0.2.18"
+  version "0.2.19"
 
   def install
     bin.install "bin/claudomate"
