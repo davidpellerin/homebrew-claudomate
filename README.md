@@ -13,10 +13,28 @@ Claude Code automation for any repo. Run scheduled AI tasks via launchd or cron.
 
 ## Install
 
+**macOS (Homebrew):**
+
 ```bash
 brew tap davidpellerin/claudomate
 brew install claudomate
 ```
+
+**Linux (or manual install):**
+
+```bash
+git clone https://github.com/davidpellerin/homebrew-claudomate.git
+cd homebrew-claudomate
+make install   # installs to ~/.local by default
+```
+
+Make sure `~/.local/bin` is in your `PATH`. To uninstall:
+
+```bash
+make uninstall
+```
+
+You can install to a different prefix with `make install PREFIX=/usr/local`.
 
 ## Usage
 
