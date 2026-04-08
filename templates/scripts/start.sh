@@ -10,6 +10,6 @@ if $TMUX_BIN -S "$TMUX_SOCK" list-windows -F '#{window_name}' 2>/dev/null | grep
   echo "Window '$WINDOW' already running."
 else
   echo "Creating window '$WINDOW' with Claude..."
-  $TMUX_BIN -S "$TMUX_SOCK" new-window -n "$WINDOW" \
+  $TMUX_BIN -S "$TMUX_SOCK" new-window -d -n "$WINDOW" \
     "cd $REPO && $CLAUDE_BIN --model haiku --dangerously-skip-permissions"
 fi
