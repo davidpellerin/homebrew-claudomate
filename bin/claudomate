@@ -8,7 +8,8 @@ TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
 _die()     { echo "claudomate: error: $*" >&2; exit 1; }
 _info()    { echo "$*"; }
-_is_macos(){ [[ "$(uname -s)" == "Darwin" ]]; }
+_is_macos()    { [[ "$(uname -s)" == "Darwin" ]]; }
+_has_launchd() { command -v launchctl >/dev/null 2>&1; }
 
 _tmux_bin() {
   if _is_macos; then
@@ -139,7 +140,10 @@ cmd_install() {
   local tmux_bin=$(_tmux_bin)
 
   case "$scheduler" in
-    launchd|cron) ;;
+    launchd)
+      _has_launchd || _die "launchd is not available on this system. Use 'claudomate install cron' instead."
+      ;;
+    cron) ;;
     "") _die "scheduler required. Use 'claudomate install launchd' or 'claudomate install cron'." ;;
     *) _die "unknown scheduler '${scheduler}'. Use 'launchd' or 'cron'." ;;
   esac
@@ -195,7 +199,10 @@ cmd_uninstall() {
   local base_label=$(_repo_label_base "$repo")
 
   case "$scheduler" in
-    launchd|cron) ;;
+    launchd)
+      _has_launchd || _die "launchd is not available on this system. Use 'claudomate uninstall cron' instead."
+      ;;
+    cron) ;;
     "") _die "scheduler required. Use 'claudomate uninstall launchd' or 'claudomate uninstall cron'." ;;
     *) _die "unknown scheduler '${scheduler}'. Use 'launchd' or 'cron'." ;;
   esac
