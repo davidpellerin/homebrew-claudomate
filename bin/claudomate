@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # claudomate - Claude Code automation CLI for any repo
 
-VERSION="0.2.19"
+VERSION="0.2.20"
 TEMPLATES_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../templates"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -33,6 +33,33 @@ _repo_label_base() {
     hash=$(echo "$repo" | md5 | cut -c1-6)
   fi
   echo "com.claudomate.${name}_${hash}"
+}
+
+# ── gitignore management ──────────────────────────────────────────────────────
+
+_update_gitignore() {
+  local repo="$1"
+  local gitignore="$repo/.gitignore"
+  local entries=("logs/" "claudomate/launchd/" "claudomate/cron/")
+  local header="# claudomate"
+  local added=()
+
+  for entry in "${entries[@]}"; do
+    if ! grep -qxF "$entry" "$gitignore" 2>/dev/null; then
+      added+=("$entry")
+    fi
+  done
+
+  [[ ${#added[@]} -eq 0 ]] && return 0
+
+  if [[ ! -f "$gitignore" ]] || ! grep -qxF "$header" "$gitignore" 2>/dev/null; then
+    printf '\n%s\n' "$header" >> "$gitignore"
+  fi
+  for entry in "${added[@]}"; do
+    printf '%s\n' "$entry" >> "$gitignore"
+  done
+
+  _info "  appended to .gitignore: ${added[*]}"
 }
 
 # ── plist generation ──────────────────────────────────────────────────────────
@@ -153,6 +180,9 @@ cmd_install() {
   # Ensure logs dir
   mkdir -p "$repo/logs"
   [[ -f "$repo/logs/.gitkeep" ]] || touch "$repo/logs/.gitkeep"
+
+  # Update .gitignore
+  _update_gitignore "$repo"
 
   # Create claudomate/README.md if missing
   if [[ ! -f "$repo/claudomate/README.md" ]]; then

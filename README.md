@@ -45,6 +45,8 @@ claudomate install launchd   # or: claudomate install cron
 
 Edit `HEARTBEAT.md` to customize your automations.
 
+`claudomate install` will automatically append `logs/`, `claudomate/launchd/`, and `claudomate/cron/` to your repo's `.gitignore` (creating it if needed), so generated files are never accidentally committed.
+
 To uninstall:
 
 ```bash
