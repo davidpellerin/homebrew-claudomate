@@ -1,0 +1,12 @@
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# kban board
+.kban/
