@@ -12,10 +12,18 @@ _is_macos()    { [[ "$(uname -s)" == "Darwin" ]]; }
 _has_launchd() { command -v launchctl >/dev/null 2>&1; }
 
 _tmux_bin() {
-  if _is_macos; then
-    echo "/opt/homebrew/bin/tmux"
+  local found
+  found=$(command -v tmux 2>/dev/null)
+  if [[ -n "$found" ]]; then
+    echo "$found"
+  elif _is_macos; then
+    if [[ -x /opt/homebrew/bin/tmux ]]; then
+      echo "/opt/homebrew/bin/tmux"
+    else
+      echo "/usr/local/bin/tmux"
+    fi
   else
-    command -v tmux 2>/dev/null || echo "tmux"
+    echo "tmux"
   fi
 }
 
