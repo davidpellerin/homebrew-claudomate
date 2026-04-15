@@ -33,7 +33,7 @@ _repo_root() {
 
 _repo_label_base() {
   local repo="$1"
-  local name=$(basename "$repo")
+  local name; name=$(basename "$repo")
   local hash
   if command -v md5sum >/dev/null 2>&1; then
     hash=$(echo "$repo" | md5sum | cut -c1-6)
@@ -142,10 +142,10 @@ _uninstall_cron() {
 
 cmd_install() {
   local scheduler="${1:-}"
-  local repo=$(_repo_root)
-  local base_label=$(_repo_label_base "$repo")
+  local repo; repo=$(_repo_root)
+  local base_label; base_label=$(_repo_label_base "$repo")
   local scripts_dir="$repo/claudomate/scripts"
-  local tmux_bin=$(_tmux_bin)
+  local tmux_bin; tmux_bin=$(_tmux_bin)
 
   case "$scheduler" in
     launchd)
@@ -203,8 +203,8 @@ cmd_install() {
 
 cmd_uninstall() {
   local scheduler="${1:-}"
-  local repo=$(_repo_root)
-  local base_label=$(_repo_label_base "$repo")
+  local repo; repo=$(_repo_root)
+  local base_label; base_label=$(_repo_label_base "$repo")
 
   case "$scheduler" in
     launchd)
