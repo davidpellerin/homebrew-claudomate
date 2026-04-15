@@ -75,6 +75,20 @@ Run `status.sh` any time you want a quick overview:
 # running (pid 1234): com.claudomate.yourrepo.heartbeat
 ```
 
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `CLAUDOMATE_MODEL` | `haiku` | Claude model passed to `--model` when starting a session |
+
+Set `CLAUDOMATE_MODEL` in your shell environment before the heartbeat runs. For example, to use Sonnet instead of Haiku:
+
+```bash
+export CLAUDOMATE_MODEL=sonnet
+```
+
+The model is evaluated at runtime each time a new tmux window is created.
+
 ## cron helpers
 
 When using `cron`, each repo gets a `claudomate/cron/` directory with utility scripts:
